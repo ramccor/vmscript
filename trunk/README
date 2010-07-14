@@ -1,0 +1,17 @@
+1. requirements
+   the following packages should be installed, you can install them using apt
+   vde2
+   kvm
+   ssvnc
+   socat
+   dialog
+   python
+   psmisc
+
+2. usage
+   
+   createkvm: just follow the wizard, after that, a new directory under your vm repository will create, and just run the startvm script under that directory.
+   startvde: starts  the vde switch.
+   lsvm: simply list all running VMs.
+   
+
