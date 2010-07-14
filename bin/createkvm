@@ -1,0 +1,156 @@
+#!/bin/sh
+
+DEFAULTREPO=~/kVMs
+
+export LC_ALL=en_US
+if test -x /usr/bin/dialog 
+then
+    DIALOG=/usr/bin/dialog
+else
+    if test -x /usr/bin/whiptail
+    then
+	DIALOG=/usr/bin/whiptail
+    fi
+fi
+
+initrepo() {
+repo=$1
+mkdir -p "$repo"
+mkdir "$repo/vde1"
+}
+
+$DIALOG --title Welcome --msgbox "Welcome Using Chaos Eternal's KVM creation utilities" 20 60
+
+REPOFILE=`mktemp`
+$DIALOG --title REPO --inputbox "Choose a directory to hold the repository" 10 40 $DEFAULTREPO 2>$REPOFILE
+REPO=`cat $REPOFILE`
+rm $REPOFILE
+
+[ ! -d $REPO ] && initrepo $REPO
+cd $REPO
+if [ ! $? = 0 ]
+then
+$DIALOG --title RepoError --msgbox "Repository does not exit yet!"
+exit 1
+fi
+REPOAB=`pwd`
+while true
+do
+    VMNAMEFILE=`mktemp`
+    $DIALOG --title VMNAME --inputbox "Input name of the new vm" 10 40 2>$VMNAMEFILE
+    VMNAME=`cat $VMNAMEFILE`
+    rm $VMNAMEFILE
+    if [ -e "$VMNAME" -o -z "$VMNAME" ] 
+    then
+	$DIALOG --title "VMNAME:ERROR" --msgbox "ERROR! The name already exists, or the input is null!" 10 30
+    else
+	break
+    fi
+done
+
+if mkdir $VMNAME&&cd $VMNAME
+then
+    $DIALOG --title "CreateKVM" --msgbox "VM dir create OK!" 10 30
+else
+    $DIALOG --title "FATAL" --msgbox "Can't create the VM dir, exiting" 10 30
+    exit
+fi
+
+
+VMMEMFILE=`mktemp`
+$DIALOG --title Memsize --inputbox "Input size of memory of the new vm, in M" 10 40 256M 2>$VMMEMFILE
+VMMEM=`cat $VMMEMFILE`
+rm $VMMEMFILE
+
+VMHDTPFILE=`mktemp`
+$DIALOG --title "Harddisk format" --radiolist "select harddisk format" 10 40 4 qcow2 recommended on raw raw off "No" "I will do it manually" off 2>$VMHDTPFILE
+VMHDTP=`cat $VMHDTPFILE`
+rm $VMHDTPFILE
+
+case $VMHDTP in
+qcow2|raw) 
+VMHDFILE=`mktemp`
+$DIALOG --title HDAsize --inputbox "Input size of hda of the new vm, end with K,M or G" 10 40 4096M 2>$VMHDFILE
+VMHD=`cat $VMHDFILE`
+rm $VMHDFILE
+
+kvm-img create -f $VMHDTP hda.img $VMHD
+;;
+*)
+touch must-create-hda.img
+;;
+esac
+
+VMISOFILE=`mktemp`
+if [ -x /usr/bin/dialog ]
+then
+  dialog --title "Select ISO File for cdrom" --fselect `pwd`/ 10 50 2>$VMISOFILE
+  VMISO=`cat $VMISOFILE`
+else
+  VMISO="$REPOAB/binary.iso"
+fi
+rm $VMISOFILE
+
+
+NICMAC=`dd if=/dev/random bs=1 count=5 status=noxfer|hexdump -e '1 1 ":%x"'`
+
+cat >startvm <<EOF
+#vars
+REPO=$REPO
+REPOAB=$REPOAB
+VMNAME=$VMNAME
+CPUTYPE=kvm64
+CTSOCK=$REPOAB/vde1
+NICMAC=$NICMAC
+HDAIMG=\$REPO/\$VMNAME/hda.img
+VMMEM=$VMMEM
+VMISO=$VMISO
+
+#the codes
+export LD_PRELOAD=/usr/lib/vde2/libvdetap.so
+export tap0=\$REPOAB/vde1
+
+(
+    flock 9
+    if [ -f "\$REPO/\$VMNAME/kvm.pid" ]
+	then
+	OLDPID=\`cat "\$REPO/\$VMNAME/kvm.pid"\`
+        fuser "\$REPO/\$VMNAME/kvm.pid" 2>/dev/null|grep -q "\\<\$OLDPID\\>"&&exit
+	rm "\$REPO/\$VMNAME/kvm.pid"
+    fi
+    
+	
+)9>\$REPO/\$VMNAME/kvm.lck
+
+
+[ -e \$REPO/\$VMNAME/kvm.pid ] && echo VM already running&&exit 111
+kvm -M pc\\
+ -pidfile \$REPO/\$VMNAME/kvm.pid\\
+ -S\\
+ -cpu \$CPUTYPE\\
+ -daemonize\\
+ -net tap,script=/bin/true,ifname=tap0\\
+ -net nic,macaddr=\$NICMAC\\
+ -hda \$HDAIMG\\
+ -m \$VMMEM\\
+ -vnc unix:\$REPO/\$VMNAME/vncsock,server \\
+ -monitor unix:\$REPO/\$VMNAME/mntrsock,server\\
+ -cdrom "\$VMISO"&
+
+sleep 1
+python <<EOF_1
+#!/usr/bin/python
+import socket
+s=socket.socket(socket.AF_UNIX)
+c=s.connect("\$REPO/\$VMNAME/mntrsock")
+i=s.recv(1000)
+print i
+s.send("c\n")
+s.recv(1000)
+EOF_1
+
+#python ~/bin/gvncviewer.py ./vncsock
+ssvncviewer \$REPO/\$VMNAME/vncsock
+
+EOF
+$DIALOG --title "The following vm config is created" --textbox startvm 20 60

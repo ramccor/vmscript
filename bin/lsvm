@@ -1,0 +1,4 @@
+#!/bin/bash
+REPO=/home/chaos/kVMs
+echo the following vm is running:
+find $REPO -type d -exec sh -c 'fuser {}/kvm.pid 2>/dev/null 1>/dev/null' \;  -print
