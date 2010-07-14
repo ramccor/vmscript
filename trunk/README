@@ -14,4 +14,12 @@
    startvde: starts  the vde switch.
    lsvm: simply list all running VMs.
    
+3. vm managerment
+   
+   i. feel free to edit the startvm script.
+   ii. after started, qemu will listen monitor request on unix socket named mntrsock, u can manage the vm by using socat, e.g.:
+       socat readline unix:./mntrsock
+   
+   iii. qemu will listen for vnc connection on unix socket named vncsock, 
+        use ssvncviewer ./vncsock to get it
 
