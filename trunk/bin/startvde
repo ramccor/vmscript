@@ -6,6 +6,7 @@ LOCK_F="./vdeswitch.lck"
 CTSOCK=`readlink -f ./vde1`
 PIDFILE="`pwd`/nic1.pid"
 MGMTFILE="`pwd`/nic1.mgmt"
+USERNAME=${USERNAME-$USER}
 HOSTTAP=hst-$USERNAME
 HOSTADDR=172.17.10.254
 HOSTMASK=255.255.255.0
@@ -28,5 +29,5 @@ NATTAP=nat-$USERNAME
 
 vde_switch -s $CTSOCK -n 4 -p "$PIDFILE" -daemon -M "$MGMTFILE"
 sudo vde_tunctl -u $USERNAME -t "$HOSTTAP"
-sudo ifconfig "$HOSTTAP" "$HOSTADDR" "$HOSTMASK" up
+sudo /sbin/ifconfig "$HOSTTAP" "$HOSTADDR" netmask "$HOSTMASK" up
 vde_plug2tap -d -s $CTSOCK "$HOSTTAP"
