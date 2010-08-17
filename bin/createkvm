@@ -43,19 +43,32 @@ do
     if [ -e "$VMNAME" -o -z "$VMNAME" ] 
     then
 	$DIALOG --title "VMNAME:ERROR" --msgbox "ERROR! The name already exists, or the input is null!" 10 30
+	if [ -d "$VMNAME" -a -e "$VMNAME"/startvm ]
+	    then
+	    $DIALOG --title "Update" --yesno "Update existing VM settings?" 10 30
+	    if [ $? == 0 ]
+		then 
+		UPDATEVM=1
+		break
+	    fi
+	fi
     else
 	break
     fi
 done
 
-if mkdir $VMNAME&&cd $VMNAME
+if [ ! x$UPDATEVM = x1 ]
 then
-    $DIALOG --title "CreateKVM" --msgbox "VM dir create OK!" 10 30
+    if mkdir $VMNAME&&cd $VMNAME
+    then
+	$DIALOG --title "CreateKVM" --msgbox "VM dir create OK!" 10 30
+    else
+	$DIALOG --title "FATAL" --msgbox "Can't create the VM dir, exiting" 10 30
+	exit
+    fi
 else
-    $DIALOG --title "FATAL" --msgbox "Can't create the VM dir, exiting" 10 30
-    exit
+    cd $VMNAME
 fi
-
 
 VMMEMFILE=`mktemp`
 $DIALOG --title Memsize --inputbox "Input size of memory of the new vm, in M" 10 40 256M 2>$VMMEMFILE
